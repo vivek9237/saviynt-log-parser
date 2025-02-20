@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Viewer</title>
+    <style>
+        body {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: Consolas, monospace;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+        }
+        h2 {
+            color: #00ff00;
+        }
+        input, select, button {
+            background-color: #333;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 5px;
+            margin: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #444;
+            padding: 5px;
+            text-align: left;
+        }
+        th {
+            background-color: #333;
+            cursor: pointer;
+        }
+        tr:nth-child(even) {
+            background-color: #2a2a2a;
+        }
+        tr:hover {
+            background-color: #444;
+        }
+        .filter-section {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .filter-section label {
+            margin-right: 10px;
+        }
+		body {
+            background-color: #001F3F;
+            color: #d4d4d4;
+            font-family: Consolas, monospace;
+            padding: 20px;
+        }
+        .container {
+            max-width: 100%;
+            margin: auto;
+        }
+        h2 {
+            color: #00ff00;
+        }
+        input, button {
+            background-color: #333;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 8px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #444;
+            padding: 5px;
+            text-align: left;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        th {
+            background-color: #333;
+            cursor: pointer;
+        }
+        tr:nth-child(even) {
+            background-color: #2a2a2a;
+        }
+        tr:hover {
+            background-color: #444;
+        }
+        .filter-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #333;
+            min-width: 200px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #00ff00;
+            z-index: 1000;
+            padding: 5px;
+        }
+        .dropdown-content label {
+            display: block;
+            padding: 5px;
+            color: #00ff00;
+            cursor: pointer;
+        }
+        .dropdown-content label:hover {
+            background-color: #444;
+        }
+        .dropdown-button {
+            width: 150px;
+            text-align: left;
+            padding: 8px;
+        }
+        .reset-button {
+            background-color: #005a9e;
+            border: none;
+            color: white;
+            padding: 8px 12px;
+        }
+        .show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Log Viewer</h2>
+        <input type="file" id="csvFileInput" accept=".csv">
+        <button id="sortButton">Sort by Date</button>
+        <br>
+
+        <div class="filter-section">
+            <label>Service Name:
+                <select id="serviceFilter">
+                    <option value="">All</option>
+                </select>
+            </label>
+            <label>Class Name:
+                <select id="classFilter">
+                    <option value="">All</option>
+                </select>
+            </label>
+            <label>Thread Name:
+                <select id="threadFilter">
+                    <option value="">All</option>
+                </select>
+            </label>
+            <label>Log Level:
+                <select id="logLevelFilter">
+                    <option value="">All</option>
+                </select>
+            </label>
+            <input type="text" id="searchMessage" placeholder="Search Message">
+        </div>
+
+        <table id="logTable">
+            <thead>
+                <tr>
+                    <th>Date Timestamp (UTC)</th>
+                    <th>Service Name</th>
+                    <th>Class Name</th>
+                    <th>Thread Name</th>
+                    <th>Log Level</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        let logs = [];
+
+        document.getElementById('csvFileInput').addEventListener('change', handleFileUpload);
+        document.getElementById('sortButton').addEventListener('click', sortLogs);
+        document.getElementById('serviceFilter').addEventListener('change', filterLogs);
+        document.getElementById('classFilter').addEventListener('change', filterLogs);
+        document.getElementById('threadFilter').addEventListener('change', filterLogs);
+        document.getElementById('logLevelFilter').addEventListener('change', filterLogs);
+        document.getElementById('searchMessage').addEventListener('input', filterLogs);
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const content = e.target.result;
+                parseCSV(content);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSV(csvText) {
+            const rows = csvText.split('\n').map(row => row.trim()).filter(row => row);
+            const headers = rows.shift().split(',').map(h => h.replace(/"/g, '').trim());
+
+            logs = rows.map(row => {
+                const values = row.split(',').map(v => v.replace(/"/g, '').trim());
+                return {
+                    timestamp: values[0],
+                    service: values[1],
+                    className: values[2],
+                    thread: values[3],
+                    logLevel: values[4],
+                    message: values.slice(5).join(', ') // Handles messages that contain commas
+                };
+            });
+
+            populateFilters();
+            displayLogs();
+        }
+
+        function populateFilters() {
+            const services = new Set();
+            const classes = new Set();
+            const threads = new Set();
+            const logLevels = new Set();
+
+            logs.forEach(log => {
+                services.add(log.service);
+                classes.add(log.className);
+                threads.add(log.thread);
+                logLevels.add(log.logLevel);
+            });
+
+            updateFilterOptions('serviceFilter', services);
+            updateFilterOptions('classFilter', classes);
+            updateFilterOptions('threadFilter', threads);
+            updateFilterOptions('logLevelFilter', logLevels);
+        }
+
+        function updateFilterOptions(elementId, values) {
+            const select = document.getElementById(elementId);
+            select.innerHTML = '<option value="">All</option>';
+            values.forEach(value => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.appendChild(option);
+            });
+        }
+
+        function sortLogs() {
+            logs.sort((a, b) => {
+                const dateA = new Date(a.timestamp).getTime();
+                const dateB = new Date(b.timestamp).getTime();
+                return dateA - dateB;
+            });
+            displayLogs();
+        }
+
+        function filterLogs() {
+            const service = document.getElementById('serviceFilter').value;
+            const className = document.getElementById('classFilter').value;
+            const thread = document.getElementById('threadFilter').value;
+            const logLevel = document.getElementById('logLevelFilter').value;
+            const search = document.getElementById('searchMessage').value.toLowerCase();
+
+            const filteredLogs = logs.filter(log => {
+                return (service === '' || log.service === service) &&
+                       (className === '' || log.className === className) &&
+                       (thread === '' || log.thread === thread) &&
+                       (logLevel === '' || log.logLevel === logLevel) &&
+                       (search === '' || log.message.toLowerCase().includes(search));
+            });
+
+            displayLogs(filteredLogs);
+        }
+
+        function displayLogs(logData = logs) {
+            const tbody = document.getElementById('logTable').querySelector('tbody');
+            tbody.innerHTML = '';
+
+            logData.forEach(log => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${log.timestamp}</td>
+                    <td>${log.service}</td>
+                    <td>${log.className}</td>
+                    <td>${log.thread}</td>
+                    <td>${log.logLevel}</td>
+                    <td>${log.message}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html>
